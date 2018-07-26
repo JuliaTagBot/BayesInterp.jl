@@ -223,7 +223,7 @@ end
             end
 
         else
-            push!(qa, :(base = $((2π)^((K-1)/4)) * det(U))
+            push!(qa, :(base = $((2π)^((K-1)/4)) * det(U)))
         end
 
 

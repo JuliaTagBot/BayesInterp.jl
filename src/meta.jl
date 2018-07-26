@@ -68,6 +68,19 @@ function norm_degree_quote(body, K, term = :term, D = :D, L = :L)
     end
 end
 
+function max_degree_quote(body, K, term = :term, D = :D)
+    quote
+        rmdq_0 = $D
+        Base.Cartesian.@nloops $K $term kmdq-> begin
+            rmdq_{$K-kmdq}:-1:0
+        end kmdq -> begin
+            rmdq_{$(K+1)-j} = rmdq_{$N-j} - $(Symbol(term, :_kmdq))
+        end begin
+            $body
+        end
+    end
+end
+
 """
 Takes a function that gets passed `sym` and `n` as two argument to choose the iteration range.
 """

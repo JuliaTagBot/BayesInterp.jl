@@ -1,6 +1,62 @@
 
-struct PolynomialDistribution{K,D,L,T}
+@generated function calclength(::Val{K}, D, L) where K
+# function calclength(::Val{K}, D, L) where K
+    quote
+        ind = 0
+        $(norm_degree_quote(:(ind += 1), K))
+        ind
+    end
+end
 
+struct PolynomialDistribution{K,D,LN,T,Dp1,L}
+    coefs::MVector{L,T}
+    buffer::MMatrix{K,Dp1,T}
+    PolynomialDistribution{K,D,LN,T,Dp1,L}() where {K,D,LN,T,Dp1,L} = new()
+    @generated function PolynomialDistribution{K,D,LN,T}() where {K,D,LN,T}
+        L = calclength(Val(K), D, L)
+        :(PolynomialDistribution{K,D,LN,T,$(D+1),$L}())
+    end
+end
+
+
+
+function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x) where {K,D,LN,T,Dp1,L}
+
+    # hermite_terms[:,1] .= $((2π)^(-0.25)) # do this on instantiation
+    poly.buffer[:,2] .= ((2π)^(-0.25)) .* x
+    @fastmath @inbounds for d ∈ 2:D
+        @views poly.buffer[:,d+1] .= ( x .* poly.buffer[:,d] .- sqrt(d-1) .* poly.buffer[:,d-1] ) ./ sqrt(d)
+    end
+
+end
+
+@generated function eval_poly!(terms, poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x) where {K,D,LN,T,Dp1,L}
+    loop_body = quote
+        ind += 1
+        @inbounds terms[ind] = $(Expr(:call, :*, [:(poly.buffer[$k, 1+$(Symbol(:term_,k))]) for k ∈ 1:K]...))
+    end
+
+    quote
+        @boundscheck length(terms) == length(poly.coefs) || throw(BoundsError())
+        fillbuffer!(poly, x)
+        ind = 0
+        $(norm_degree_quote(loop_body, K, :term, D, L))
+        terms
+    end
+end
+@generated function eval_poly!(poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x) where {K,D,LN,T,Dp1,L}
+    loop_body = quote
+        ind += 1
+        @inbounds out += $(Expr(:call, :*, [:(poly.buffer[$k, 1+$(Symbol(:term_,k))]) for k ∈ 1:K]...)) * poly.coefs[ind]
+    end
+
+    quote
+        out = zero(T)
+        fillbuffer!(poly, x)
+        ind = 0
+        $(norm_degree_quote(loop_body, K, :term, D, L))
+        out
+    end
 end
 
 ### While we can use Base.Cartesian.@nloops to iterate over a polynomial, having to do that + generated functions
@@ -68,14 +124,7 @@ end
 
 
 @generated Base.length(::Type{PolynomialDistribution{K,D,L}}) where {K,D,L} = calclength(Val(K),D,L)
-@generated function calclength(::Val{K}, D, L) where K
-# function calclength(::Val{K}, D, L) where K
-    quote
-        ind = 0
-        $(norm_degree_quote(:(ind += 1), K))
-        ind
-    end
-end
+
 
 macro poly(loop)
     loop.head == :for || throw("Only supports for loops.")

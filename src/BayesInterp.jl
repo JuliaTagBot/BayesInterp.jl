@@ -4,7 +4,8 @@ module BayesInterp
 using   Base.Cartesian,
         Sobol,
         SpecialFunctions,
-        LinearAlgebra
+        LinearAlgebra,
+        StaticArrays
 
 
 export  design_matrix,
