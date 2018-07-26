@@ -1,9 +1,10 @@
 __precompile__()
 module BayesInterp
 
-using Compat
-using Base.Cartesian
-using Sobol, SpecialFunctions
+using   Base.Cartesian,
+        Sobol,
+        SpecialFunctions,
+        LinearAlgebra
 
 
 export  design_matrix,
@@ -13,9 +14,11 @@ export  design_matrix,
         max_degree_polynomial,
         sobol_vec
 
-include("design_matrix.jl")
+include("meta.jl")
 include("polynomial_generator.jl")
+include("design_matrix.jl")
 include("prior_precision_matrix.jl")
 include("sobol.jl")
+include("marginalize.jl")
 
 end # module

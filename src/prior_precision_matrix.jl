@@ -1,22 +1,60 @@
 
+
+
+"""
+This emits a diagonal matrix.
+
+Gosh is this code awful.
+"""
+@generated function hermite_prior_covariance(poly::PolynomialDistribution{K,D,L}, ::Val{deriv}, α=1.0, κ::T=1.0) where {K,D,L,T,deriv}
+    loop_body = quote
+        penalty = zero($T)
+        $(Symbol(:deriv_,2K-1)) = $deriv
+        @nloops $(K-1) deriv d -> begin
+            if d == 1
+                max(0,deriv_{$(K+1)} - $(Symbol(:term_, K))):min(deriv_{$(K+1)},term_1)
+            else
+                0:min(deriv_{$K+d},term_d)
+            end
+        end d -> begin
+            deriv_{$(K-1)+d} = deriv_{$K+d} - deriv_d
+        end begin
+            penalty += 1/$(Expr(:call, :*, [:(factorial( $(Symbol(:term_, k)) - $(Symbol(:deriv_,k)) ))  for k ∈ 1:K]...))
+        end
+        ind += 1
+        poly_factorial = $(Expr(:call, :*, [:(factorial($(Symbol(:term_, k)))) for k ∈ 1:K]...))
+        prior_cov.diag[ind] = 1/(penalty*poly_factorial*κ + α)
+    end
+    quote
+        ind = 0
+        prior_cov = Diagonal(Vector{T}(undef, $(length(PolynomialDistribution{K,D,L}))))
+        $(norm_degree_quote(loop_body, K, :term, D, L))
+        prior_cov
+    end
+end
+
+
+
+
+
+
+
 """
 D is number of derivatives.
 κ is actually half the kappa from the document.
 """
-function prior_precision(poly::Vector{NTuple{N,I}}, ::Val{D}, α=1.0, κ::T=1.0) where {N,D,T,I<:Integer}
+function prior_precision(::PolynomialDistribution{N,D,L}, α=1.0, κ::T=1.0) where {N,D,T,L}
     n = length(poly)
     out = Matrix{T}(undef, n, n)
-    for i ∈ 1:n
+    @inbounds for i ∈ 1:n
         pᵢ = poly[i]
         for j ∈ 1:i-1
             out[j,i] = joint_precision_entry(pᵢ,poly[j],Val{D}(),κ)
         end
         out[i,i] = diag_precision_entry(pᵢ,Val{D}(),α,κ)
     end
-    for i ∈ 1:n #symm! vs gemm! ?!?
-        for j ∈ i+1:n
-            out[j,i] = out[i,j]
-        end
+    @inbounds for i ∈ 1:n, j ∈ i+1:n
+        out[j,i] = out[i,j]
     end
     out
 end

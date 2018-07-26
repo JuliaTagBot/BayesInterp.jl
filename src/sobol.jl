@@ -30,6 +30,26 @@ function sobol_seq(::Val{N}) where N
     SobolSeq{N}(m,zeros(UInt32,N),zeros(UInt32,N),zero(UInt32))
 end
 
+function next_tuple!(s::SobolSeq{N}) where N
+    s.n += one(s.n)
+    c = UInt32(trailing_zeros(s.n))
+    ntuple(i -> gen_sobol_x!(i, c, s.b, s.x, s.m) , Val{N}())
+end
+function next_slice!(s::SobolSeq{N}, X, col) where N
+    s.n += one(s.n)
+    c = UInt32(trailing_zeros(s.n))
+    @inbounds for n ∈ 1:N
+        X[n,col] = gen_sobol_x!(n, c, s.b, s.x, s.m)
+    end
+end
+function next_slice!(s::SobolSeq{N}, X, col, α) where N
+    s.n += one(s.n)
+    c = UInt32(trailing_zeros(s.n))
+    @inbounds for n ∈ 1:N
+        X[n,col] = α * gen_sobol_x!(n, c, s.b, s.x, s.m)
+    end
+end
+
 function sobol_vec(::Val{N}, npoints::Int = 64, ::Type{T} = Float64) where {N,T}
     s = sobol_seq(Val{N}())
     x = Vector{T}(undef, N)
@@ -59,6 +79,5 @@ function gen_sobol_x!(i, c, sb, sx, sm)
         @inbounds sb[i] = c
         @inbounds x = sx[i] * Sobol.scale2m[c+1]
     end
-    #logit(x)
-    erfinv(2x-1) * √2 / 3 #sigma = 1/3
+    √2erfinv(2x-1)
 end

@@ -1,0 +1,9 @@
+name = "BayesInterp"
+uuid = "814864de-89d5-11e8-1c72-cfea32f978d7"
+authors = ["chriselrod "]
+version = "0.0.0"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Sobol = "ed01d8cd-4d21-5b2a-85b4-cc3bdc58bad4"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
