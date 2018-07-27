@@ -8,24 +8,38 @@
     end
 end
 
-struct PolynomialDistribution{K,D,LN,T,Dp1,L}
-    coefs::MVector{L,T}
-    buffer::MMatrix{K,Dp1,T}
-    PolynomialDistribution{K,D,LN,T,Dp1,L}() where {K,D,LN,T,Dp1,L} = new()
+struct PolynomialDistribution{K,D,LN,T,Dp1,L,KDp1}
+    coefs::MArray{Tuple{L},T,1,L}#MVector{L,T}
+    buffer::MArray{Tuple{K,Dp1},T,2,KDp1}#MMatrix{K,Dp1,T}
+    function PolynomialDistribution{K,D,LN,T,Dp1,L,KDp1}() where {K,D,LN,T,Dp1,L,KDp1}
+        buffer = MMatrix{K,Dp1,T}(undef)
+        @inbounds for k ∈ 1:K
+            buffer[k,1] = (2π)^(-0.25)
+        end
+        new(MVector{L,T}(undef), buffer)
+    end
     @generated function PolynomialDistribution{K,D,LN,T}() where {K,D,LN,T}
-        L = calclength(Val(K), D, L)
-        :(PolynomialDistribution{K,D,LN,T,$(D+1),$L}())
+        L = calclength(Val(K), D, LN)
+        :(PolynomialDistribution{K,D,LN,T,$(D+1),$L,$(K*(D+1))}())
     end
 end
 
+const UnivariatePolynomialDistribution{D,T,Dp1} = PolynomialDistribution{1,D,1,T,Dp1,Dp1}
 
 
-function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x) where {K,D,LN,T,Dp1,L}
+function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T}, x::NTuple{K}) where {K,D,LN,T}
 
     # hermite_terms[:,1] .= $((2π)^(-0.25)) # do this on instantiation
-    poly.buffer[:,2] .= ((2π)^(-0.25)) .* x
+    @inbounds for k ∈ 1:K
+        poly.buffer[k,2] = ((2π)^(-0.25)) * x[k]
+    end
+    rootlast = one(T)
     @fastmath @inbounds for d ∈ 2:D
-        @views poly.buffer[:,d+1] .= ( x .* poly.buffer[:,d] .- sqrt(d-1) .* poly.buffer[:,d-1] ) ./ sqrt(d)
+        rootcurrent = sqrt(d)
+        for k ∈ 1:K
+            poly.buffer[k,d+1] = ( x[k] * poly.buffer[k,d] - rootlast * poly.buffer[k,d-1] ) / rootcurrent
+        end
+        rootlast = rootcurrent
     end
 
 end
@@ -40,7 +54,7 @@ end
         @boundscheck length(terms) == length(poly.coefs) || throw(BoundsError())
         fillbuffer!(poly, x)
         ind = 0
-        $(norm_degree_quote(loop_body, K, :term, D, L))
+        $(norm_degree_quote(loop_body, K, :term, D, LN))
         terms
     end
 end
@@ -54,7 +68,7 @@ end
         out = zero(T)
         fillbuffer!(poly, x)
         ind = 0
-        $(norm_degree_quote(loop_body, K, :term, D, L))
+        $(norm_degree_quote(loop_body, K, :term, D, LN))
         out
     end
 end

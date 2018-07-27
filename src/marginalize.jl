@@ -200,6 +200,11 @@ end
 
     Kp1 = K+1
     quote
+
+        @inbounds for d ∈ 1:$D
+            marginal[d] = zero(T)
+        end
+
         Li = inv(L)
         j_0 = D
         DL = $(D^L)
@@ -294,7 +299,9 @@ end
                 end
                 length(Υfactors) > 0 && push!(qa, :(iter_value *= $(Expr(:call, :*, Υfactors...))))
 
-
+                for z ∈ marginal_ind_kappa÷2:0
+                    push!(qa, :(marginal[$(marginal_ind_kappa-2z)] += iter_value / $(2^z * factorial(z) * sqrt(factorial(marginal_ind_kappa-2z)) ) ))
+                end
             end
 
         end
@@ -304,8 +311,11 @@ end
 
 
 
+function marginalize(poly::PolynomialDistribution{K,D,LN,T,Dp1}, ::Val{marginal_ind}) where {K,D,LN,T,Dp1,marginal_ind}
+    marginal = MMatrix{8,Dp1,T}(undef)    
+    marginalize!(marginal, poly, Val(marginal_ind))
+end
 
-
-@generated function marginalize(HP::PolynomialDistribution{K,D,L}, ::Val{marginal_ind}) where {K,D,L,marginal_ind}
-    marginal_quote_quote(Val(K), D, marginal_ind, L)
+@generated function marginalize!(marginal, poly::PolynomialDistribution{K,D,LN}, ::Val{marginal_ind}) where {K,D,LN,marginal_ind}
+    marginal_quote_quote(Val(K), D, marginal_ind, LN)
 end

@@ -5,7 +5,8 @@ using   Base.Cartesian,
         Sobol,
         SpecialFunctions,
         LinearAlgebra,
-        StaticArrays
+        StaticArrays,
+        DifferentiableObjects
 
 
 export  design_matrix,

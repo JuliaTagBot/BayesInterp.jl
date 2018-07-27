@@ -4,7 +4,9 @@ authors = ["chriselrod "]
 version = "0.0.0"
 
 [deps]
+DifferentiableObjects = "e829a12a-7dbf-11e8-18a8-f94f525a9d85"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Sobol = "ed01d8cd-4d21-5b2a-85b4-cc3bdc58bad4"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TriangularMatrices = "5ebe76dc-7dd7-11e8-2992-2706ab89a682"
