@@ -27,7 +27,7 @@ end
 const UnivariatePolynomialDistribution{D,T,Dp1} = PolynomialDistribution{1,D,1,T,Dp1,Dp1}
 
 
-function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T}, x::NTuple{K}) where {K,D,LN,T}
+function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T}, x) where {K,D,LN,T}
 
     # hermite_terms[:,1] .= $((2π)^(-0.25)) # do this on instantiation
     @inbounds for k ∈ 1:K
@@ -43,6 +43,22 @@ function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T}, x::NTuple{K}) where
     end
 
 end
+function fillbuffer!(poly::PolynomialDistribution{K,D,LN,T}, x,n) where {K,D,LN,T}
+
+    # hermite_terms[:,1] .= $((2π)^(-0.25)) # do this on instantiation
+    @inbounds for k ∈ 1:K
+        poly.buffer[k,2] = ((2π)^(-0.25)) * x[k,n]
+    end
+    rootlast = one(T)
+    @fastmath @inbounds for d ∈ 2:D
+        rootcurrent = sqrt(d)
+        for k ∈ 1:K
+            poly.buffer[k,d+1] = ( x[k,n] * poly.buffer[k,d] - rootlast * poly.buffer[k,d-1] ) / rootcurrent
+        end
+        rootlast = rootcurrent
+    end
+
+end
 
 @generated function eval_poly!(terms, poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x) where {K,D,LN,T,Dp1,L}
     loop_body = quote
@@ -53,6 +69,20 @@ end
     quote
         @boundscheck length(terms) == length(poly.coefs) || throw(BoundsError())
         fillbuffer!(poly, x)
+        ind = 0
+        $(norm_degree_quote(loop_body, K, :term, D, LN))
+        terms
+    end
+end
+@generated function eval_poly!(terms, poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, x, n) where {K,D,LN,T,Dp1,L}
+    loop_body = quote
+        ind += 1
+        @inbounds terms[ind,n] = $(Expr(:call, :*, [:(poly.buffer[$k, 1+$(Symbol(:term_,k))]) for k ∈ 1:K]...))
+    end
+
+    quote
+        @boundscheck size(terms,1) == length(poly.coefs) || throw(BoundsError())
+        fillbuffer!(poly, x, n)
         ind = 0
         $(norm_degree_quote(loop_body, K, :term, D, LN))
         terms

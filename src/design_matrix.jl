@@ -1,28 +1,61 @@
 
 
-@generated function hermite_design(::PolynomialDistribution{K,D,L,T}, N) where {K,D,L,T}
+@generated function hermite_design(::PolynomialDistribution{K,D,LN,T}, N) where {K,D,LN,T}
     loop_body = quote
         ind += 1
         X[ind, n] = $(Expr(:call, :*, [:(hermite_terms[$k, 1+$(Symbol(:term_,k))]) for k ∈ 1:K]...))
     end
-    quote
-        s = sobol_seq(Val($K))
-        skip(s, N)
-        hermite_terms = Matrix{T}(undef, $K, $(D+1))
-        hermite_terms[:,1] .= $((2π)^(-0.25))
-        X = Matrix{$T}(undef, $(length(PolynomialDistribution{K,D,L})), N)
-        for n ∈ 1:N
-            x = next_tuple!(s)
-            hermite_terms[:,2] .= $((2π)^(-0.25)) .* x
-            # next_slice!(s, X, 2, $((2π)^(-0.25)))
-            @fastmath @inbounds for d ∈ 2:$D
-                @views hermite_terms[:,d+1] .= ( x .* hermite_terms[:,d] .- sqrt(d-1) .* hermite_terms[:,d-1] ) ./ sqrt(d)
+    # if D <= 20
+        q = quote
+            s = sobol_seq(Val($K))
+            skip(s, N)
+            hermite_terms = Matrix{T}(undef, $K, $(D+1))
+            hermite_terms[:,1] .= $((2π)^(-0.25))
+            X = Matrix{$T}(undef, $(length(PolynomialDistribution{K,D,LN})), N)
+            for n ∈ 1:N
+                x = next_tuple!(s)
+                hermite_terms[:,2] .= $((2π)^(-0.25)) .* x
+                # next_slice!(s, X, 2, $((2π)^(-0.25)))
+                @fastmath @inbounds for d ∈ 2:$D
+                    @views hermite_terms[:,d+1] .= ( x .* hermite_terms[:,d] .- sqrt(d-1) .* hermite_terms[:,d-1] ) ./ sqrt(d)
+                end
+                @show hermite_terms
+                ind = 0
+                $(norm_degree_quote(loop_body, K, :term, D, LN))
             end
-            ind = 0
-            $(norm_degree_quote(loop_body, K, :term, D, L))
+            X
         end
-        X
+    # else
+    #     q = quote
+    #         s = sobol_seq(Val($K))
+    #         skip(s, N)
+    #         hermite_terms = Matrix{T}(undef, $K, $(D+1))
+    #         hermite_terms[:,1] .= $((2π)^(-0.25))
+    #         X = Matrix{$T}(undef, $(length(PolynomialDistribution{K,D,LN})), N)
+    #         for n ∈ 1:N
+    #             x = next_tuple!(s)
+    #             hermite_terms[:,2] .= $((2π)^(-0.25)) .* x
+    #             # next_slice!(s, X, 2, $((2π)^(-0.25)))
+    #             @fastmath @inbounds for d ∈ 2:$D
+    #                 @views hermite_terms[:,d+1] .= ( x .* hermite_terms[:,d] .- sqrt(d-1) .* hermite_terms[:,d-1] ) ./ sqrt(d)
+    #             end
+    #             ind = 0
+    #             $(norm_degree_quote(loop_body, K, :term, D, LN))
+    #         end
+    #         X
+    #     end
+    # end
+    # q
+end
+
+
+function hermite_design(poly::PolynomialDistribution{K,D,LN,T,Dp1,L}, points::AbstractMatrix) where {K,D,LN,T,Dp1,L}
+    N = size(points,2)
+    X = Matrix{T}(undef, L, N)
+    for n ∈ 1:N
+        eval_poly!(X, poly, points, n)
     end
+    X
 end
 function orthoherm(x,N)
     N == 0 && return (2π)^(-0.25)

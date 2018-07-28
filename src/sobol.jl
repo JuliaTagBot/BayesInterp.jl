@@ -52,7 +52,7 @@ end
 
 function sobol_vec(::Val{N}, npoints::Int = 64, ::Type{T} = Float64) where {N,T}
     s = sobol_seq(Val{N}())
-    x = Vector{T}(undef, N)
+    # x = Vector{T}(undef, N)
     Sobol.skip!(s, npoints-1, x)
 
     out = Vector{NTuple{N,T}}(undef, npoints)
@@ -80,4 +80,26 @@ function gen_sobol_x!(i, c, sb, sx, sm)
         @inbounds x = sx[i] * Sobol.scale2m[c+1]
     end
     √2erfinv(2x-1)
+end
+
+function sobol_mat(::Val{K}, N) where K
+    s = sobol_seq(Val(K))
+    skip(s, N)
+    out = Matrix{Float64}(undef, K, N)
+    for n ∈ 1:N
+        next_slice!(s, out, n)
+    end
+    out
+end
+function sobol_mat(::Val{K}, N, skip1) where K
+    s = sobol_seq(Val(K))
+    skip(s, N-1)
+    out = Matrix{Float64}(undef, K, N)
+    for k ∈ 1:K
+        out[k,1] = 0
+    end
+    for n ∈ 2:N
+        next_slice!(s, out, n)
+    end
+    out
 end

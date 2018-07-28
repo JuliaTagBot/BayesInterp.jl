@@ -6,7 +6,7 @@ This emits a diagonal matrix.
 
 Gosh is this code awful.
 """
-@generated function hermite_prior_covariance(poly::PolynomialDistribution{K,D,L,T}, ::Val{deriv}, α=1.0, κ=1.0) where {K,D,L,T,deriv}
+@generated function hermite_prior_covariance(poly::PolynomialDistribution{K,D,LN,T}, ::Val{deriv}, α=1.0, κ=1.0) where {K,D,LN,T,deriv}
     loop_body = quote
         penalty = zero($T)
         $(Symbol(:deriv_,2K-1)) = $deriv
@@ -27,39 +27,64 @@ Gosh is this code awful.
     end
     quote
         ind = 0
-        prior_cov = Diagonal(Vector{T}(undef, $(length(PolynomialDistribution{K,D,L}))))
-        $(norm_degree_quote(loop_body, K, :term, D, L))
+        prior_cov = Diagonal(Vector{T}(undef, $(length(PolynomialDistribution{K,D,LN}))))
+        $(norm_degree_quote(loop_body, K, :term, D, LN))
         prior_cov
     end
 end
 
-@generated function hermite_prior_covariance(poly::PolynomialDistribution{K,D,L,T}, α::NTuple{derivs}=(1,1,1,1)) where {K,D,L,T,derivs}
-    loop_body = quote
-        penalty = zero($T)
-        poly_factorial = $(Expr(:call, :*, [:(factorial($(Symbol(:term_, k)))) for k ∈ 1:K]...))
-        for deriv ∈ 2:$derivs
-            temp_penalty = zero(T)
-            $(Symbol(:deriv_,2K-1)) = deriv-1
-            @nloops $(K-1) deriv d -> begin
-                if d == 1
-                    max(0,deriv_{$(K+1)} - $(Symbol(:term_, K))):min(deriv_{$(K+1)},term_1)
-                else
-                    0:min(deriv_{$K+d},term_d)
+@generated function hermite_prior_covariance(poly::PolynomialDistribution{K,D,LN,T}, α::NTuple{derivs}=(1,1,1,1)) where {K,D,LN,T,derivs}
+    if D <= 20
+        loop_body = quote
+            penalty = zero($T)
+            poly_factorial = $(Expr(:call, :*, [:(factorial($(Symbol(:term_, k)))) for k ∈ 1:K]...))
+            for deriv ∈ 2:$derivs
+                temp_penalty = zero(T)
+                $(Symbol(:deriv_,2K-1)) = deriv-1
+                @nloops $(K-1) deriv d -> begin
+                    if d == 1
+                        max(0,deriv_{$(K+1)} - $(Symbol(:term_, K))):min(deriv_{$(K+1)},term_1)
+                    else
+                        0:min(deriv_{$K+d},term_d)
+                    end
+                end d -> begin
+                    deriv_{$(K-1)+d} = deriv_{$K+d} - deriv_d
+                end begin
+                    temp_penalty += 1/$(Expr(:call, :*, [:(factorial( $(Symbol(:term_, k)) - $(Symbol(:deriv_,k)) ))  for k ∈ 1:K]...))
                 end
-            end d -> begin
-                deriv_{$(K-1)+d} = deriv_{$K+d} - deriv_d
-            end begin
-                temp_penalty += 1/$(Expr(:call, :*, [:(factorial( $(Symbol(:term_, k)) - $(Symbol(:deriv_,k)) ))  for k ∈ 1:K]...))
+                penalty += α[deriv] * temp_penalty * poly_factorial
             end
-            penalty += α[deriv] * temp_penalty * poly_factorial
+            ind += 1
+            prior_cov.diag[ind] = 1/(α[1] + penalty)
         end
-        ind += 1
-        prior_cov.diag[ind] = 1/(α[1] + penalty)
+    else
+        loop_body = quote
+            penalty = zero($T)
+            # poly_factorial = $(Expr(:call, :*, [:(factorial($(Symbol(:term_, k)))) for k ∈ 1:K]...))
+            for deriv ∈ 2:$derivs
+                temp_penalty = zero(T)
+                $(Symbol(:deriv_,2K-1)) = deriv-1
+                @nloops $(K-1) deriv d -> begin
+                    if d == 1
+                        max(0,deriv_{$(K+1)} - $(Symbol(:term_, K))):min(deriv_{$(K+1)},term_1)
+                    else
+                        0:min(deriv_{$K+d},term_d)
+                    end
+                end d -> begin
+                    deriv_{$(K-1)+d} = deriv_{$K+d} - deriv_d
+                end begin
+                    temp_penalty += 1/$(Expr(:call, :*, [:(binomial( $(Symbol(:term_, k)), $(Symbol(:deriv_,k)) )*factorial( $(Symbol(:deriv_,k)) ))  for k ∈ 1:K]...))
+                end
+                penalty += α[deriv] * temp_penalty# * poly_factorial
+            end
+            ind += 1
+            prior_cov.diag[ind] = 1/(α[1] + penalty)
+        end
     end
     quote
         ind = 0
-        prior_cov = Diagonal(Vector{T}(undef, $(length(PolynomialDistribution{K,D,L}))))
-        $(norm_degree_quote(loop_body, K, :term, D, L))
+        prior_cov = Diagonal(Vector{T}(undef, $(length(PolynomialDistribution{K,D,LN}))))
+        $(norm_degree_quote(loop_body, K, :term, D, LN))
         prior_cov
     end
 end
@@ -74,7 +99,7 @@ end
 D is number of derivatives.
 κ is actually half the kappa from the document.
 """
-function prior_precision(::PolynomialDistribution{N,D,L}, α=1.0, κ::T=1.0) where {N,D,T,L}
+function prior_precision(::PolynomialDistribution{N,D,LN}, α=1.0, κ::T=1.0) where {N,D,T,LN}
     n = length(poly)
     out = Matrix{T}(undef, n, n)
     @inbounds for i ∈ 1:n
